@@ -2,8 +2,8 @@
 
 WITH tb_pedidos AS (
   SELECT *
-  FROM bronze.olist.orders
-  WHERE order_purchase_timestamp < '2018-07-01'
+  FROM workspace.olist.orders
+  WHERE order_purchase_timestamp < '{date}'
 ),
 
 tb_itens_pedidos_periodo AS (
@@ -22,7 +22,7 @@ tb_itens_pedidos_periodo AS (
 
   FROM tb_pedidos p
 
-  INNER JOIN bronze.olist.order_items i
+  INNER JOIN workspace.olist.order_items i
     ON p.order_id = i.order_id
 
   GROUP BY
@@ -39,7 +39,7 @@ tb_geo AS (
     geolocation_zip_code_prefix,
     AVG(geolocation_lat) AS latitude,
     AVG(geolocation_lng) AS longitude
-  FROM bronze.olist.geolocation
+  FROM workspace.olist.geolocation
   GROUP BY geolocation_zip_code_prefix
 ),
 
@@ -110,12 +110,12 @@ tb_base_seller_orders AS (
       ELSE NULL
     END AS distancia_km
 
-  FROM bronze.olist.sellers s
+  FROM workspace.olist.sellers s
 
   LEFT JOIN tb_itens_pedidos_periodo i
     ON s.seller_id = i.seller_id
 
-  LEFT JOIN bronze.olist.customers c
+  LEFT JOIN workspace.olist.customers c
     ON i.customer_id = c.customer_id
 
   LEFT JOIN tb_geo geo_seller
@@ -420,140 +420,142 @@ tb_gap_estado_agg AS (
 
   FROM tb_gap_estado
   GROUP BY seller_id
-)
+),
+
+tb_final AS (
 
 SELECT
-  s.seller_id,
+  s.seller_id AS idSeller,
 
-  s.seller_city,
-  s.seller_state,
+  s.seller_city AS sellerCity,
+  s.seller_state AS sellerState,
 
-  s.regiao_seller,
-  s.flag_seller_capital,
+  s.regiao_seller AS regiaoSeller,
+  s.flag_seller_capital AS flagSellerCapital,
 
-  COALESCE(ve.volume_total_pedidos_estado_seller, 0) AS volume_total_pedidos_estado_seller,
-  COALESCE(vc.volume_total_pedidos_cidade_seller, 0) AS volume_total_pedidos_cidade_seller,
+  COALESCE(ve.volume_total_pedidos_estado_seller, 0) AS volumeTotalPedidosEstadoSeller,
+  COALESCE(vc.volume_total_pedidos_cidade_seller, 0) AS volumeTotalPedidosCidadeSeller,
 
-  COALESCE(s.qtd_pedidos_seller, 0) AS qtd_pedidos_seller,
-  COALESCE(s.receita_total_seller, 0) AS receita_total_seller,
+  COALESCE(s.qtd_pedidos_seller, 0) AS qtdPedidosSeller,
+  COALESCE(s.receita_total_seller, 0) AS receitaTotalSeller,
 
-  COALESCE(s.qtd_ufs_atendidas, 0) AS qtd_ufs_atendidas,
-  COALESCE(s.qtd_cidades_atendidas, 0) AS qtd_cidades_atendidas,
+  COALESCE(s.qtd_ufs_atendidas, 0) AS qtdUfsAtendidas,
+  COALESCE(s.qtd_cidades_atendidas, 0) AS qtdCidadesAtendidas,
 
-  COALESCE(s.qtd_pedidos_proprio_estado, 0) AS qtd_pedidos_proprio_estado,
-  COALESCE(s.qtd_pedidos_propria_cidade, 0) AS qtd_pedidos_propria_cidade,
+  COALESCE(s.qtd_pedidos_proprio_estado, 0) AS qtdPedidosProprioEstado,
+  COALESCE(s.qtd_pedidos_propria_cidade, 0) AS qtdPedidosPropriaCidade,
 
   CASE 
     WHEN s.qtd_pedidos_seller = 0 THEN 0
     ELSE s.qtd_pedidos_proprio_estado * 1.0 / s.qtd_pedidos_seller
-  END AS pct_pedidos_proprio_estado,
+  END AS pctPedidosProprioEstado,
 
   CASE 
     WHEN s.qtd_pedidos_seller = 0 THEN 0
     ELSE s.qtd_pedidos_propria_cidade * 1.0 / s.qtd_pedidos_seller
-  END AS pct_pedidos_propria_cidade,
+  END AS pctPedidosPropriaCidade,
 
   CASE 
     WHEN me.qtd_pedidos_total_estado_destino IS NULL 
       OR me.qtd_pedidos_total_estado_destino = 0 
     THEN 0
     ELSE s.qtd_pedidos_proprio_estado * 1.0 / me.qtd_pedidos_total_estado_destino
-  END AS participacao_pedidos_seller_proprio_estado,
+  END AS participacaoPedidosSellerProprioEstado,
 
   CASE 
     WHEN mc.qtd_pedidos_total_cidade_destino IS NULL 
       OR mc.qtd_pedidos_total_cidade_destino = 0 
     THEN 0
     ELSE s.qtd_pedidos_propria_cidade * 1.0 / mc.qtd_pedidos_total_cidade_destino
-  END AS participacao_pedidos_seller_propria_cidade,
+  END AS participacaoPedidosSellerPropriaCidade,
 
-  re.rank_seller_pedidos_estado,
-  rc.rank_seller_pedidos_cidade,
+  re.rank_seller_pedidos_estado AS rankSellerPedidosEstado,
+  rc.rank_seller_pedidos_cidade AS rankSellerPedidosCidade,
 
-  COALESCE(s.receita_proprio_estado, 0) AS receita_proprio_estado,
-  COALESCE(s.receita_propria_cidade, 0) AS receita_propria_cidade,
+  COALESCE(s.receita_proprio_estado, 0) AS receitaProprioEstado,
+  COALESCE(s.receita_propria_cidade, 0) AS receitaPropriaCidade,
 
   CASE 
     WHEN me.receita_total_estado_destino IS NULL 
       OR me.receita_total_estado_destino = 0 
     THEN 0
     ELSE s.receita_proprio_estado / me.receita_total_estado_destino
-  END AS participacao_receita_proprio_estado,
+  END AS participacaoReceitaProprioEstado,
 
   CASE 
     WHEN mc.receita_total_cidade_destino IS NULL 
       OR mc.receita_total_cidade_destino = 0 
     THEN 0
     ELSE s.receita_propria_cidade / mc.receita_total_cidade_destino
-  END AS participacao_receita_propria_cidade,
+  END AS participacaoReceitaPropriaCidade,
 
-  pe.principal_estado_pedidos_seller AS estado_maior_qtd_pedidos_seller,
-  pc.principal_cidade_pedidos_seller AS cidade_maior_qtd_pedidos_seller,
+  pe.principal_estado_pedidos_seller AS estadoMaiorQtdPedidosSeller,
+  pc.principal_cidade_pedidos_seller AS cidadeMaiorQtdPedidosSeller,
 
-  pc.principal_cidade_pedidos_seller,
-  pe.principal_estado_pedidos_seller,
+  pc.principal_cidade_pedidos_seller AS principalCidadePedidosSeller,
+  pe.principal_estado_pedidos_seller AS principalEstadoPedidosSeller,
 
-  COALESCE(pe.qtd_pedidos_principal_estado, 0) AS qtd_pedidos_principal_estado,
-  COALESCE(pc.qtd_pedidos_principal_cidade, 0) AS qtd_pedidos_principal_cidade,
+  COALESCE(pe.qtd_pedidos_principal_estado, 0) AS qtdPedidosPrincipalEstado,
+  COALESCE(pc.qtd_pedidos_principal_cidade, 0) AS qtdPedidosPrincipalCidade,
 
   CASE 
     WHEN s.qtd_pedidos_seller = 0 THEN 0
     ELSE pe.qtd_pedidos_principal_estado * 1.0 / s.qtd_pedidos_seller
-  END AS pct_pedidos_principal_estado_destino,
+  END AS pctPedidosPrincipalEstadoDestino,
 
   CASE 
     WHEN s.qtd_pedidos_seller = 0 THEN 0
     ELSE pc.qtd_pedidos_principal_cidade * 1.0 / s.qtd_pedidos_seller
-  END AS pct_pedidos_principal_cidade_destino,
+  END AS pctPedidosPrincipalCidadeDestino,
 
-  s.media_distancia_km,
-  s.mediana_distancia_km,
-  s.max_distancia_km,
-  s.min_distancia_km,
+  s.media_distancia_km AS mediaDistanciaKm,
+  s.mediana_distancia_km AS medianaDistanciaKm,
+  s.max_distancia_km AS maxDistanciaKm,
+  s.min_distancia_km AS minDistanciaKm,
 
-  COALESCE(s.qtd_pedidos_curta_distancia, 0) AS qtd_pedidos_curta_distancia,
-  COALESCE(s.qtd_pedidos_media_distancia, 0) AS qtd_pedidos_media_distancia,
-  COALESCE(s.qtd_pedidos_longa_distancia, 0) AS qtd_pedidos_longa_distancia,
+  COALESCE(s.qtd_pedidos_curta_distancia, 0) AS qtdPedidosCurtaDistancia,
+  COALESCE(s.qtd_pedidos_media_distancia, 0) AS qtdPedidosMediaDistancia,
+  COALESCE(s.qtd_pedidos_longa_distancia, 0) AS qtdPedidosLongaDistancia,
 
   CASE 
     WHEN s.qtd_pedidos_seller = 0 THEN 0
     ELSE s.qtd_pedidos_curta_distancia * 1.0 / s.qtd_pedidos_seller
-  END AS pct_pedidos_curta_distancia,
+  END AS pctPedidosCurtaDistancia,
 
   CASE 
     WHEN s.qtd_pedidos_seller = 0 THEN 0
     ELSE s.qtd_pedidos_media_distancia * 1.0 / s.qtd_pedidos_seller
-  END AS pct_pedidos_media_distancia,
+  END AS pctPedidosMediaDistancia,
 
   CASE 
     WHEN s.qtd_pedidos_seller = 0 THEN 0
     ELSE s.qtd_pedidos_longa_distancia * 1.0 / s.qtd_pedidos_seller
-  END AS pct_pedidos_longa_distancia,
+  END AS pctPedidosLongaDistancia,
 
-  me_seller.media_pedidos_sellers_mesmo_estado,
-  mc_seller.media_pedidos_sellers_mesma_cidade,
+  me_seller.media_pedidos_sellers_mesmo_estado AS mediaPedidosSellersMesmoEstado,
+  mc_seller.media_pedidos_sellers_mesma_cidade AS mediaPedidosSellersMesmaCidade,
 
-  s.qtd_pedidos_seller - me_seller.media_pedidos_sellers_mesmo_estado AS dif_pedidos_vs_media_estado,
-  s.qtd_pedidos_seller - mc_seller.media_pedidos_sellers_mesma_cidade AS dif_pedidos_vs_media_cidade,
+  s.qtd_pedidos_seller - me_seller.media_pedidos_sellers_mesmo_estado AS difPedidosVsMediaEstado,
+  s.qtd_pedidos_seller - mc_seller.media_pedidos_sellers_mesma_cidade AS difPedidosVsMediaCidade,
 
   CASE 
     WHEN me_seller.media_pedidos_sellers_mesmo_estado = 0 THEN NULL
     ELSE s.qtd_pedidos_seller / me_seller.media_pedidos_sellers_mesmo_estado
-  END AS razao_pedidos_vs_media_estado,
+  END AS razaoPedidosVsMediaEstado,
 
   CASE 
     WHEN mc_seller.media_pedidos_sellers_mesma_cidade = 0 THEN NULL
     ELSE s.qtd_pedidos_seller / mc_seller.media_pedidos_sellers_mesma_cidade
-  END AS razao_pedidos_vs_media_cidade,
+  END AS razaoPedidosVsMediaCidade,
 
-  COALESCE(gap.soma_gap_estado_positivo, 0) AS soma_gap_estado_positivo,
-  COALESCE(gap.soma_abs_gap_estado, 0) AS soma_abs_gap_estado,
-  COALESCE(gap.score_cobertura_estado, 0) AS score_cobertura_estado,
+  COALESCE(gap.soma_gap_estado_positivo, 0) AS somaGapEstadoPositivo,
+  COALESCE(gap.soma_abs_gap_estado, 0) AS somaAbsGapEstado,
+  COALESCE(gap.score_cobertura_estado, 0) AS scoreCoberturaEstado,
 
   CASE 
     WHEN s.qtd_pedidos_seller = 0 THEN 1
     ELSE 0
-  END AS flag_seller_sem_pedido
+  END AS flagSellerSemPedido
 
 FROM tb_seller s
 
@@ -591,5 +593,11 @@ LEFT JOIN tb_media_cidade_seller mc_seller
  AND s.seller_city = mc_seller.seller_city
 
 LEFT JOIN tb_gap_estado_agg gap
-  ON s.seller_id = gap.seller_id;
+  ON s.seller_id = gap.seller_id
 
+)
+
+SELECT '{date}' AS dtRef,
+       *
+
+FROM tb_final
