@@ -241,7 +241,7 @@ tb_intervalo_vendas AS (
 
     FROM tb_pedido_seller
     GROUP BY seller_id
-)
+),
 
 -- ============================================================
 -- Consolidação das métricas por seller
