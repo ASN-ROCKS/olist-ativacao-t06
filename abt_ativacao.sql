@@ -1,3 +1,5 @@
+CREATE TABLE workspace.feature_store.abt_ativacao AS
+
 WITH tb_ativacao AS (
 
     SELECT DISTINCT
